@@ -1,0 +1,798 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typedefs xmlns="http://www.vzw.com/namespaces/scm" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.vzw.com/namespaces/scm DataServicesSchema.xsd">
+
+	<typedef type="BPM_PRV_fetchOpOrder_alt">
+
+		<key attribs="custIdNo,acctNo,billSysId,mtn,namespace,ordNo,lnItmNo,lnItmTypCd,effDt"></key>
+
+		<attribute name="intBillSysId" visible="false">
+			<variable>$billSysId.toInteger()</variable>
+		</attribute>
+		<attribute name="intOrdNo" visible="false">
+			<variable>$ordNo.toInteger()</variable>
+		</attribute>
+		<attribute name="intLnItmNo" visible="false">
+			<variable>$lnItmNo.toInteger()</variable>
+		</attribute>
+		<attribute name="orderInfo" type="orderWrite.OrderInfoModel"
+			dataservice="Cassandra">
+			<query>
+				select prefer_lang_cd, bl_cyc_no
+				from vzw_order.order_info
+				where ord_no = $ordNo;
+			</query>
+		</attribute>
+		<attribute name="orderLnItemPending" type="orderWrite.OrderLnItemModel"
+			dataservice="Cassandra">
+			<query>
+				select
+				ord_no,ln_itm_no,ln_itm_typ_cd,fulfill_tmstamp,ln_of_svc_id_no_p1,ln_of_svc_id_no_p2,device_typ_sim,
+				mtn,min_id,ported,device_id,imsi_vzw,imsi_vf,euimid,prl_baseline,home_sid,rate_center_id,lcc,st_cd,ord_proc_priority,pplan_id_no,splan_id_no,sbid_alt,cust_id_no,acct_no,priority,etni_ip_pool_cd,device_make,device_model,self_actv_ind,device_id_typ,device_Typ,sim_card_no,prov_priority_cd,port_flag_ind,client_id,new_min_id,ord_provis_attr_list,device_eid,visible_acct_email_id,
+				country_cd,addr_1,zip_cd,city_nme,device_id_new,stat_reason_cd,esn_chg_rsn_cd,new_mtn,new_mtn_eff_dt,m2m_allow_dmd,m2m_allow_ecpd,esn_only_chg_ind,device_id_eqp,device_id_typ_new
+				from vzw_order.order_ln_item_pending where cust_id_no=$custIdNo and
+				acct_no=$acctNo and bucket_no=#bucketNo and bill_sys_id=$billSysId
+				and mtn=$mtn and ln_itm_typ_cd=$lnItmTypCd and ord_no=$ordNo and
+				ln_itm_no=$lnItmNo
+			</query>
+		</attribute>
+
+		<attribute name="orConfig" type="OrConfigModel" dataservice="Cassandra">
+			<query>
+				select namespace,key,value from or_config
+				where
+				namespace=$namespace
+			</query>
+		</attribute>
+
+		<!-- <attribute name="mcsCustomer" type="McsCustomerModel"
+			dataservice="Cassandra">
+			<query>
+				select ecpdid,cust_id_no,acct_no,bs_customer_type from mcs_customer
+				where
+				cust_id_no=$custIdNo and acct_no=$acctNo and bucket_no=#bucketNo and mtn=$mtn
+			</query>
+		</attribute>  -->
+		<attribute name="mcsCustomer" type="EnterpriseCustomerModel" dataservice="Cassandra" visible="true">
+			<query>
+			select cust_id_no, ecpd_profile_id, cust_typ_cd	from enterprise_customer where cust_id_no = $custIdNo;
+			</query>
+		</attribute>
+
+		<attribute name="orderLnItemPendingFeatures" type="orderWrite.OrderLnItemFeatures"
+			dataservice="Cassandra">
+			<query>
+				select
+				feat_ids_in_sfo,sf_tran_cd,feature_typ_cd,ord_no,ip_addr,ip_addr_v6,ln_itm_no,msg_table_dest_cd,sf_hotln_mtn,sf_offering_id,home_agent_cd from
+				vzw_order.order_ln_item_pending_features
+				where
+				cust_id_no=$custIdNo and
+				acct_no=$acctNo and bucket_no=#bucketNo and bill_sys_id=$billSysId
+				and mtn=$mtn
+			</query>
+		 <filter>ordNo == %intOrdNo &amp;&amp; lnItmNo == %intLnItmNo </filter>
+		</attribute>
+
+		<attribute name="orderLnItemFeaturesfeatIdsInSfo" executeOnEmptyDependencies="true" visible = "true">
+			<variable>
+				def orderLnItemPendingFeatures1 = %orderLnItemPendingFeatures
+				def orderLnItemPendingFeaturesList = [] as LinkedList
+
+				 if(orderLnItemPendingFeatures1 != null)
+				{
+					orderLnItemPendingFeatures1.each
+					{
+						def featIdsInSfo=it.featIdsInSfo
+						def sfTranCd=it.sfTranCd
+						if(featIdsInSfo != null &amp;&amp; featIdsInSfo != '')
+						{
+						   def featIdsInSfoListMaster = featIdsInSfo.split(',')
+						   def size1 = featIdsInSfoListMaster.size()
+						   def uniqueIds = [] as Set
+						   def sfTranCdList = [] as LinkedList
+						   for(i=0;i&lt;size1;i++)
+						   {
+							  if(!uniqueIds.contains(featIdsInSfoListMaster[i]))
+							  {
+								uniqueIds.add(featIdsInSfoListMaster[i])
+								sfTranCdList.add(sfTranCd)
+							  }
+						   }
+						   def featIdsInSfoList = uniqueIds
+						   def size2 = featIdsInSfoList.size()
+						   for(i=0;i&lt;size2;i++)
+						   {
+							 def clone = new com.vzwcorp.dagv.data.model.orderWrite.OrderLnItemFeatures()
+							 clone.featIdsInSfo=  featIdsInSfoList[i]
+							 clone.sfTranCd= sfTranCdList[i]
+							 orderLnItemPendingFeaturesList.add(clone);
+						   }
+						}
+					}
+				}
+				 orderLnItemPendingFeaturesList
+			</variable>
+		</attribute>
+
+
+
+		<attribute name="mqFeatureXref" type="MqFeatureXrefModel"
+			dataservice="Cassandra" defaultToEmptyIfCancel="true" >
+			<query>
+				select nk3_value as mtas_feat_cd,pk1_value as feat_id,nk2_value as lcc_txt from reference_xref where source_table = 'MQ_FEATURE_XREF' and pk1_value =%orderLnItemFeaturesfeatIdsInSfo.featIdsInSfo.strFeatId
+			</query>
+		</attribute>
+		<!-- <attribute name="orderLnItemPendingFeaturesOrdNoLnItmNo">
+			<variable> %orderLnItemPendingFeatures.findAll{it.ordNo == %intOrdNo &amp;&amp; it.lnItmNo == %intLnItmNo} </variable>
+		</attribute>
+		<attribute name="mqFeatureXrefLcc" type="MqFeatureXrefModel" dataservice="Cassandra">
+			<query> select lcc_txt from mq_feature_xref
+			        where feat_id = %orderLnItemPendingFeatures.featIdsInSfo.featId
+			</query>
+		</attribute> -->
+
+		<attribute name="lineClass" type="LineClassModel" dataservice="Cassandra">
+			<query> select lcc_txt, lcc_typ from line_class where lcc_txt = %mqFeatureXref.lccTxt
+			</query>
+		</attribute>
+
+		<attribute name="orderLnItemPendingSpo" type="orderWrite.OrderLnItemSpoModel" dataservice="Cassandra">
+			<query> select svc_prod_id, mtn, ord_no, ln_itm_no,prc_action_cd,ln_itm_typ_cd,svc_prod_lvl_cd,elig_start_ts,elig_end_ts from vzw_order.order_ln_item_pending_spo where cust_id_no = $custIdNo and acct_no = $acctNo and bucket_no = #bucketNo and bill_sys_id = $billSysId and mtn = $mtn
+			</query>
+			<filter> ordNo == %intOrdNo &amp;&amp; lnItmNo == %intLnItmNo </filter>
+		</attribute>
+		
+		<!--Thingspace related queries-->
+		<attribute name="orderLnItemPendingSposToCheckThingspace">
+			<variable> %orderLnItemPendingSpo.findAll{it.prcActionCd == 'A' &amp;&amp; it.svcProdLvlCd == 'L'}
+			</variable>
+		</attribute>
+		
+		<attribute name="thingspaceCategoryCdSpo" type="SvcProdCatModel" dataservice="Cassandra">
+		    <conditional>%orderLnItemPendingSposToCheckThingspace != null &amp;&amp; !%orderLnItemPendingSposToCheckThingspace.empty </conditional>
+			<query>
+		     	select pk1_value as svc_prod_id,  ck1_value as prc_cat_cd,  ck2_value as svc_prod_cat_eff_dt,  nk2_value as svc_prod_cat_end_dt from reference_xref where source_table = 'SVC_PROD_CAT'  and pk1_value = %orderLnItemPendingSposToCheckThingspace.svcProdId.strSvcProdId		
+			</query>
+		   	<queryFilters operator="AND">
+		   		<queryFilter column = "prc_cat_cd" value="THINGSPACE" expression="EQUALS"/>
+				<queryFilter column = "svc_prod_cat_eff_dt" value="$effDt" expression="LTE"/>
+				<queryFilter column = "svc_prod_cat_end_dt" value="$effDt" expression="GTE"/>
+			</queryFilters>
+	   </attribute>
+	   
+	   <attribute name="svcProdOffrGetAllowance" type="SvcProdOffrModel" executeOnEmptyDependencies="true" dataservice="Cassandra">
+	   	<conditional>%thingspaceCategoryCdSpo != null &amp;&amp; !%thingspaceCategoryCdSpo.empty </conditional>
+			<query>select pk1_value as svc_prod_id,  ck1_value as sub_offr_typ_cd,  ck2_value as sub_offr_typ_id from reference_xref where source_table = 'SVC_PROD_OFFR'  and pk1_value = %thingspaceCategoryCdSpo.svcProdId.strSvcProdId and ck1_value = 'AO' 
+			</query> 		
+		</attribute>   
+		
+		<attribute name="allowanceOffer" type="AllowanceOfferModel" executeOnEmptyDependencies="true" dataservice="Cassandra">
+			<conditional>%thingspaceCategoryCdSpo != null &amp;&amp; !%thingspaceCategoryCdSpo.empty </conditional>
+			<query> select pk1_value as allow_offr_id,  nk1_value as allow_amt,  nk3_value as allow_credit_cd,  nk8_value as allow_typ_cd from reference_xref where source_table = 'ALLOWANCE_OFFER' and pk1_value = %svcProdOffrGetAllowance.subOffrTypId.strAllowOffrId
+	 		</query>
+		    <queryFilters operator="OR">
+		    	<queryFilters operator="AND">
+					<queryFilter column = "allow_typ_cd" value="MS" expression="EQUALS"/>
+					<queryFilter column = "allow_credit_cd" value="T" expression="EQUALS"/>
+	        	</queryFilters>	
+				<queryFilter column = "allow_typ_cd" value="G" expression="EQUALS"/>
+				<queryFilter column = "allow_typ_cd" value="M" expression="EQUALS"/>
+	        </queryFilters>				
+		</attribute>   
+
+		<attribute name="allowanceType" type="AllowanceTypeModel" executeOnEmptyDependencies="true" dataservice="Cassandra">
+			<conditional>%thingspaceCategoryCdSpo != null &amp;&amp; !%thingspaceCategoryCdSpo.empty </conditional>
+			<query>select pk1_value as allow_typ_cd,  nk2_value as unit_of_meas_cd from reference_xref where source_table = 'ALLOWANCE_TYPE'  and pk1_value = %allowanceOffer.allowTypCd 
+	 		</query> 	
+		</attribute> 
+		<!--Thingspace related queries-->
+
+		<attribute name="tempsvcProdProvMap1" type="SvcProdProvMapModel" dataservice="Cassandra"  defaultToEmptyIfCancel="true" >
+			<query> select svc_prod_id, svc_prod_prov_cd, prov_typ_cd, prov_dest_sys_cd from svc_prod_prov_map
+					where svc_prod_id = %orderLnItemPendingSpo.svcProdId
+			</query>
+ 		</attribute>
+
+		<attribute name="overrideSvcProdProvMap" type="SvcProdProvOverrideModel" defaultToEmptyIfCancel="true" dataservice="Cassandra">
+			<query> select svc_prod_id, svc_prod_prov_cd, ovr_svc_prod_prov_cd from
+					svc_prod_prov_override where svc_prod_id = %orderLnItemPendingSpo.svcProdId
+			</query>
+ 		</attribute>
+
+		<attribute name="tempsvcProdProvMap" type="SvcProdProvMapModel" dataservice="Cassandra" defaultToEmptyIfCancel="true" executeOnEmptyDependencies="true">
+			<variable> %tempsvcProdProvMap1.findAll{!%overrideSvcProdProvMap.svcProdProvCd.contains(it.svcProdProvCd)}
+			</variable>
+ 		</attribute>		
+
+		<attribute name="tempsvcProdIdProvMap" type="SvcProdProvMapModel" dataservice="Cassandra" defaultToEmptyIfCancel="true" executeOnEmptyDependencies="true" >
+			<variable> %tempsvcProdProvMap1.findAll{!%overrideSvcProdProvMap.svcProdId.contains(it.svcProdId)}
+			</variable>
+ 		</attribute>
+
+		<attribute name="svcProdProvMap" >
+			 <variable>%tempsvcProdProvMap.findAll{it.provTypCd == 'LCC' &amp;&amp; it.provDestSysCd == 'MTS'}</variable>
+		</attribute>
+
+		<attribute name="svcProdProvCodeSPO" type="SvcProdProvCodeModel" dataservice="Cassandra">
+			<query> select svc_prod_prov_cd, prov_priority_no from svc_prod_prov_code
+					where svc_prod_prov_cd = %svcProdProvMap.svcProdProvCd
+			</query>
+		</attribute>
+
+		<attribute name="svcProdProvCodeSFO" type="SvcProdProvCodeModel" dataservice="Cassandra">
+			<query> select svc_prod_prov_cd, prov_priority_no from svc_prod_prov_code
+					where svc_prod_prov_cd = %lineClass.lccTxt.svcProdProvCd
+			</query>
+		</attribute>
+
+		<attribute name="blAcct" type="BlAcctModel" dataservice="Cassandra">
+			<query> select prefer_lang_cd,bill_sys_id from bl_acct
+					where cust_id_no = $custIdNo and acct_no = $acctNo
+			</query>
+				<filter>billSysId == %intBillSysId </filter>
+		</attribute>
+		<attribute name="enterpriseCust" type="EnterpriseCustomerModel" dataservice="Cassandra">
+			<query> select cust_typ_cd,cust_class_cd,bl_cyc_no,bill_sys_id from enterprise_customer where cust_id_no= $custIdNo
+			</query>
+			<filter>billSysId == %intBillSysId </filter>
+		</attribute>
+
+		<attribute name="ordLnPendMinId" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).minId != null  &amp;&amp;  %orderLnItemPending.get(0).minId.length() &gt;= 7</variable>
+		</attribute>
+
+		<attribute name="minLDig" visible="false">
+		  <conditional>%ordLnPendMinId</conditional>
+		  <variable>%orderLnItemPending.get(0).minId.substring(6,7)</variable>
+		</attribute>
+
+		<attribute name="minCarrier" visible="false">
+		  <conditional>%ordLnPendMinId</conditional>
+		  <variable>%orderLnItemPending.get(0).minId.substring(0,6)</variable>
+		</attribute>
+
+		<attribute name="minLSidBid" type="MinLSidBidModel"	dataservice="Cassandra">
+			<query>
+				select sbid,min_carrier,min_l_dig,disassociation_dt  from MIN_L_SID_BID where  min_carrier=%minCarrier and min_l_dig=%minLDig
+			</query>
+				<filter>disassociationDt == '9999-12-31' </filter>
+		</attribute>
+		<attribute name="ordLnPendSplanPplanId" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).pplanIdNo == null  &amp;&amp;  %orderLnItemPending.get(0).splanIdNo == null</variable>
+		</attribute>
+
+		<attribute name="lnPrimMultiIdByLos" type="LnPrimMultiIdModel"	dataservice="Cassandra">
+			<conditional>%ordLnPendSplanPplanId</conditional>
+			<query>
+				select ln_id,ln_id_typ,multi_id_typ,ln_multi_id_eff_ts,ln_of_svc_id_no_p2,ln_of_svc_id_no_p1,ln_multi_id_end_ts  from ln_prim_multi_id_by_los where
+			   ln_of_svc_id_no_p2 = %orderLnItemPending.lnOfSvcIdNoP2 and	ln_of_svc_id_no_p1 = %orderLnItemPending.lnOfSvcIdNoP1
+			</query>
+			<filter>lnMultiIdEndTs == '9999-12-31-23.59.59.999999'  &amp;&amp;  lnIdTyp == 'MTN'  &amp;&amp; multiIdTyp  == 'SEG' </filter>
+		</attribute>
+
+		<attribute name="lnPrimMultiId" type="LnPrimMultiIdModel"	dataservice="Cassandra">
+			<query>
+				 select ln_id,ln_id_typ,multi_id_typ,ln_of_svc_id_no_p2,ln_of_svc_id_no_p1 from LN_PRIM_MULTI_ID  where ln_id=%lnPrimMultiIdByLos.lnId and ln_id_typ='MTN'
+			</query>
+		</attribute>
+
+
+		<attribute name="ordLnPendSplanPplanId99999" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).pplanIdNo == 99999  ||  %orderLnItemPending.get(0).splanIdNo &gt; 0</variable>
+		</attribute>
+		
+		<attribute name="ordLnPendPplanIdgt0" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp; %orderLnItemPending.get(0).pplanIdNo &gt; 0</variable>
+		</attribute>
+
+		<attribute name="sbidAltVTS" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).sbidAlt != null  &amp;&amp;  !%orderLnItemPending.get(0).sbidAlt.empty </variable>
+		</attribute>
+
+		<attribute name="sbidAltIRSA" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).sbidAlt == null  ||  %orderLnItemPending.get(0).sbidAlt.empty </variable>
+		</attribute>
+
+
+		 <attribute name="roamAgreeTyp">
+		 <variable>
+		 if(%sbidAltIRSA)  { "IRSA" }
+		 else if(%sbidAltVTS) { "VTS" }</variable>
+		</attribute>
+
+		 <attribute name="splanPrl" type="SplanPrlModel"	dataservice="Cassandra">
+		 <conditional>%ordLnPendSplanPplanId99999</conditional>
+			<query>
+				 select  prl_baseline_txt,splan_prl_end_dt from  splan_prl
+               where splan_id_no      = %orderLnItemPending.splanIdNo
+               and roam_agree_typ   = %roamAgreeTyp
+			</query>
+		<filter>splanPrlEndDt == '9999-12-31'  </filter>
+		</attribute>
+
+		  <attribute name="pplanPrl" type="PplanPrlModel"	dataservice="Cassandra">
+		     <conditional>!%ordLnPendSplanPplanId99999</conditional>
+			<query>
+				 select  prl_baseline_txt, end_dt from  pplan_prl
+               where pplan_id_no      = %orderLnItemPending.pplanIdNo
+               and roam_agree_typ   = %roamAgreeTyp
+			</query>
+		<filter>endDt == '9999-12-31'  </filter>
+		</attribute>
+		
+		<attribute name="ordLnPendPplanIdZero" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;%orderLnItemPending.get(0).pplanIdNo == 0 </variable>
+		</attribute>
+		
+		<attribute name = "pplanPrlKey" type="ReferenceXrefModel" visible="false">
+			<variable>
+				import com.vzwcorp.dagv.data.model.ReferenceXrefModel 
+				def finalList = []
+				%mcsCustomerPplanId.each{
+					def finalkey =  it.pplanIdNo +'~~' + %roamAgreeTyp 
+					finalList.add(new ReferenceXrefModel(pk1Value :finalkey))
+				}
+				return finalList;
+			</variable>
+		</attribute>
+		
+		<!--FCST456P (FCST014P -486P) Step 10 -->
+		<attribute dataservice="Cassandra" name="pplanPrlPplanIdZero" type="PplanPrlModel"> 
+			<query>select ck1_value as prl_baseline_txt,nk2_value as end_dt,pk1_value as roam_agree_typ from reference_xref where source_table='PPLAN_PRL' and pk1_value=%pplanPrlKey.pk1Value.roamAgreeTyp</query>
+			<queryFilters> 
+				<queryFilter column="end_dt" expression="EQUALS" value="9999-12-31"/> 
+			</queryFilters> 
+		</attribute>
+		
+		<!-- <attribute name="pplanPrlPplanIdZero" type="PplanPrlModel"	dataservice="Cassandra">
+		   <conditional>%ordLnPendPplanIdZero</conditional>
+			<query>
+				 select  prl_baseline_txt, end_dt from  pplan_prl
+               where pplan_id_no      = %mcsCustomerPplanId.pplanIdNo
+               and roam_agree_typ   = %roamAgreeTyp
+			</query>
+		<filter>endDt == '9999-12-31'</filter> 
+		</attribute> -->
+		
+		
+		 
+		
+		<!-- HYBRID PRL BASE LINE Changes Start-->
+		
+		<attribute name="refXrefSbidMap" type="ReferenceXrefModel" dataservice="Cassandra">
+		<query>
+	     	 select pk1_value,ck1_value,nk1_value from REFERENCE_XREF  where source_table='FCC_CGSA_SBID_MAP_BY_SBID' and pk1_value=%minLSidBid.sbid.pk1Value
+		</query>
+	   </attribute>
+	   
+	   <attribute name="refXrefPrlFccHybrSplanTemp" type="ReferenceXrefModel" dataservice="Cassandra">
+	   <conditional>%splanPrl != null &amp;&amp; !%splanPrl.empty </conditional>
+		<query>
+	     	 select pk1_value,ck1_value,nk1_value,ck2_value,nk2_Value from reference_xref where source_table = 'PRL_FCC_CGSA_HYBR' and pk1_value = %refXrefSbidMap.ck1Value.pk1Value
+	     	 <!--AND ck2_value IN ('ACT', 'APL')-->
+	     	 <!-- AND ck1_value =%splanPrl.prlBaselineTxt.ck1Value -->
+	     	 </query>
+		<filter>nk2Value == '9999-12-31'</filter>	
+	   </attribute>
+	   
+	   <attribute name="refXrefPrlFccHybrSplan" >
+			<variable>%refXrefPrlFccHybrSplanTemp.findAll{%splanPrl.prlBaselineTxt.contains(it.ck1Value) &amp;&amp;
+			['ACT', 'APL'].contains(it.ck2Value)}</variable>
+		</attribute>
+		
+		<attribute name="refXrefPrlFccHybrPplanTemp" type="ReferenceXrefModel" dataservice="Cassandra">
+	    <conditional>%pplanPrl != null &amp;&amp; !%pplanPrl.empty </conditional>
+		<query>
+	     	 select pk1_value,ck1_value,nk1_value,ck2_value,nk2_Value  from reference_xref where source_table = 'PRL_FCC_CGSA_HYBR'
+			and pk1_value = %refXrefSbidMap.ck1Value.pk1Value 
+			<!--AND ck2_value IN ('ACT', 'APL') 
+			 AND ck1_value =%pplanPrl.prlBaselineTxt.ck1Value -->			 			
+		</query>
+	   	<filter>nk2Value == '9999-12-31'</filter>	
+	   </attribute>
+	   
+	   <attribute name="refXrefPrlFccHybrPplan" >
+			<variable>%refXrefPrlFccHybrPplanTemp.findAll{%pplanPrl.prlBaselineTxt.contains(it.ck1Value) &amp;&amp;
+			['ACT', 'APL'].contains(it.ck2Value)}</variable>
+		</attribute>
+	   
+	   <!-- HYBRID PRL BASE LINE Changes End-->
+
+		<attribute name="custLnPplan" type="CustLinePplanModel"	dataservice="Cassandra">
+			<conditional>%ordLnPendSplanPplanId</conditional>
+			<query>
+			   select  pplan_id_no,cust_id_no,acct_no,ln_of_svc_id_no_p1,ln_of_svc_id_no_p2, cust_ln_pplan_end_ts ,cust_ln_pplan_eff_ts from  cust_line_pplan
+               where cust_id_no      = %orderLnItemPending.custIdNo
+               and acct_no   = %orderLnItemPending.acctNo
+               and bucket_no=#bucketNo
+               and bill_sys_id = $billSysId and ln_of_svc_id_no_p2 = %orderLnItemPending.lnOfSvcIdNoP2 and	ln_of_svc_id_no_p1 = %orderLnItemPending.lnOfSvcIdNoP1
+               limit 100
+			</query>
+		<filter>custLnPplanEndTs == '9999-12-31-23.59.59.999999'  </filter>
+		</attribute>
+
+       <attribute name="pplanPrlcustLnPplan" type="PplanPrlModel"	dataservice="Cassandra">
+			<query>
+				 select  prl_baseline_txt, end_dt from  pplan_prl
+               where pplan_id_no      = %custLnPplan.pplanIdNo
+               and roam_agree_typ   = %roamAgreeTyp
+			</query>
+		<filter>endDt == '9999-12-31'  </filter>
+		</attribute>
+
+	   <attribute name="featureTable" type="FeatureModel"	dataservice="Cassandra">
+			<query>
+				select feat_id,feat_family_id,feat_nme,feat_typ_cd from FEATURE where feat_id=%mqFeatureXref.featId
+			</query>
+		</attribute>
+
+		<attribute name="featTypCdRTRA">
+			 <variable>%featureTable.findAll{it.featTypCd == 'RTRA'}</variable>
+		</attribute>
+
+			<attribute name="splanNew" type="SplanModel" dataservice="Cassandra">
+		<query>
+			select 	splan_cat_cd, splan_id_no from	splan	where splan_id_no = %orderLnItemPending.splanIdNo
+	</query>
+	</attribute>
+
+
+   <attribute name="refXrefVzwSvcRule" type="ReferenceXrefModel" dataservice="Cassandra">
+		<query>
+	     	 select nk1_value,nk4_value,nk5_value,ck1_value ,pk1_value from REFERENCE_XREF where source_table='VZW_SVC_PROC_RULE' and pk1_value='UNL' and ck1_value='UNLPL'
+		</query>
+	</attribute>
+
+	<attribute name="vzwSvcProcRuleUNLNew" visible="false" >
+		<variable>	%refXrefVzwSvcRule.findAll{ it.nk5Value == 'EQ' &amp;&amp; ['SPLAN_CAT_CD','PPLAN_CAT_CD'].contains(it.nk4Value) 	&amp;&amp; %splanNew.splanCatCd.contains(it.nk1Value.substring(0,2))}
+		</variable>
+	</attribute>
+
+
+	  <attribute name="sfOffr" type="ReferenceXrefModel" dataservice="Cassandra">
+			<query>
+			  select pk1_value,nk4_value  from reference_xref  where source_table = 'SF_OFFR' and pk1_value = %orderLnItemPendingFeatures.sfOfferingId.pk1Value
+			</query>
+		</attribute>
+
+		  <attribute name="pkgProcCategory" type="ReferenceXrefModel" dataservice="Cassandra">
+			<query>
+				 select pk1_value, ck1_value  from reference_xref  where source_table = 'PKG_PROC_CATEGORY'  and pk1_value =%sfOffr.nk4Value.pk1Value
+			</query>
+		</attribute>
+
+		 <attribute name="pkgProcCategoryExists" >
+		  <conditional>%vzwSvcProcRuleUNLNew!= null &amp;&amp; !%orderLnItemPending.empty </conditional>
+		<variable>%pkgProcCategory.findAll{['D1AF', 'D2AF','MDAF','VMDF'].contains(it.ck1Value) }
+		</variable>
+		</attribute>
+		
+		<attribute name="dsdsAccount" type="VzwSvcProcRuleModel" dataservice="Cassandra">
+			<query>
+				select nk3_value as vzw_rule_typ_val_num from reference_xref  where source_table = 'VZW_SVC_PROC_RULE' and pk1_value = 'TRL' and ck1_value='TRL03'
+			</query>
+		</attribute>
+		
+		<!-- FamilyShareSetID Start-->
+		<attribute name="familyShareSetIdWaldoData" type="PplanModel" dataservice="Cassandra">	    	
+			<query>select pk1_value as pplan_id_no,nk9_value as pplan_dsc,nk12_value as pplan_set_id from reference_xref where source_table='PPLAN' and pk1_value=%orderLnItemPending.pplanIdNo.strPplanIdNo limit 1
+			</query>
+		</attribute>
+		
+		<attribute  dataservice="Cassandra" name="custMtnData" type="CustMtnModel">
+ 		 <query>select mtn_eff_dt,user_phone_id,mtn from cust_mtn where cust_id_no = $custIdNo and bucket_no = #bucketNo and bill_sys_id = $billSysId and mtn = $mtn limit 1</query>
+		</attribute>
+		
+		<attribute  dataservice="Cassandra" name="custMtn" type="CustMtnModel">
+			 <conditional>!%ordLnPendPplanIdgt0</conditional> 
+	 		 <variable>%custMtnData</variable>
+		</attribute>	
+		
+		<attribute name="pplanMtnGeneric" type="PplanMtnModel" dataservice="Cassandra" visible="false">
+            <query>SELECT eff_tmstamp,pplan_id_no,eff_dt,pp_cntrct_terms_id,mtn,mtn_eff_dt,curr_pri_ind, bill_sys_id,end_dt FROM pplan_mtn_by_mtn_eff_dt WHERE cust_id_no = $custIdNo AND acct_no = $acctNo AND mtn = $mtn AND mtn_eff_dt = %custMtn.mtnEffDt</query>
+			<queryFilters operator="AND">
+				<queryFilter column="curr_pri_ind" expression="EQUALS" value="C"/>
+			</queryFilters>
+            <filter>billSysId == %intBillSysId</filter>
+        </attribute>
+		
+		<attribute name="pplanMtn2" visible="false">
+			<variable>%pplanMtnGeneric.max{it.effTmstamp}</variable>
+		</attribute>
+		
+		<attribute name="pplanMtn">
+            <variable>%pplanMtnGeneric.findAll{it.effTmstamp == %pplanMtn2.effTmstamp}</variable>
+        </attribute>
+		
+		<attribute name="familyShareSetIdPplanIdZero" type="PplanModel" dataservice="Cassandra">	    	
+			<query>select pk1_value as pplan_id_no,nk9_value as pplan_dsc,nk12_value as pplan_set_id from reference_xref where source_table='PPLAN' and pk1_value=%pplanMtn.pplanIdNo.strPplanIdNo limit 1
+			</query>
+		</attribute>
+		
+		<!-- FamilyShareSetID End-->
+		
+		<attribute name="dunsUltimateNo" type="EcpdProfileModel" dataservice="Cassandra">	    	
+			<query>
+			select duns_ultimate_no from ECPD_PROFILE where ecpd_profile_id = %mcsCustomer.ecpdProfileId
+			</query>
+		</attribute>
+		
+		<!-- Phase 5 Modify Line -->
+		
+		<attribute name="mcsCustomerDevice" type="McsCustomerModel" dataservice="Cassandra">
+			<query>
+				select device_id,device_id_type,imsi_vf,imsi_vzw,pplan_id_no,iccid,mtn_eff_dt from mcs_customer
+				where cust_id_no=$custIdNo and acct_no=$acctNo and bucket_no=#bucketNo and mtn=$mtn limit 1
+			</query>
+		</attribute>
+		
+		<attribute name="mcsCustomerPplanId" >
+			<variable>%mcsCustomerDevice.findAll{%custMtn.mtnEffDt.contains(it.mtnEffDt) }
+		</variable>
+		</attribute>
+		
+		<attribute name="lnAddlDvcInfo" type="LnAddlDvcInfoModel"	dataservice="Cassandra">
+			<query>
+				select rate_center_id,device_typ,st_cd from ln_addl_dvc_info where 
+				ln_of_svc_id_no_p1=%orderLnItemPending.lnOfSvcIdNoP1 and ln_of_svc_id_no_p2=%orderLnItemPending.lnOfSvcIdNoP2 
+				and device_id=%orderLnItemPending.deviceId and device_id_typ=%orderLnItemPending.deviceIdTyp
+			</query>
+		</attribute>
+		
+		<attribute name="dvcSimInfo" type="DvcSimInfoModel" dataservice="Cassandra">
+			<query>
+				select euimid from dvc_sim_info where device_id=%orderLnItemPending.deviceId and device_id_typ=%orderLnItemPending.deviceIdTyp and bill_sys_id=$billSysId
+			</query>
+		</attribute>
+		
+		<attribute name="baSplanEffDt" visible="false">
+			<variable>%orderLnItemPending.get(0).newMtnEffDt</variable>
+		</attribute>
+
+		<attribute name="accountSPlan" type="BlAcctSplanModel" dataservice="Cassandra">
+			<conditional>%mcsCustomerDevice != null &amp;&amp; !%mcsCustomerDevice.empty &amp;&amp; %mcsCustomerDevice.get(0).pplanIdNo == 99999 </conditional>
+			<query>select splan_id_no,ba_splan_eff_dt,ba_splan_end_dt,bill_sys_id
+				from bl_acct_splan where cust_id_no = $custIdNo and acct_no = $acctNo
+			</query>
+			<filter>billSysId == %intBillSysId &amp;&amp; baSplanEffDt &lt;= %baSplanEffDt &amp;&amp; baSplanEndDt == '9999-12-31'</filter>
+		</attribute>
+		
+		<attribute name="prlBaseLineTxtOldLTE" type="PplanPrlModel" dataservice="Cassandra">
+			<query>
+				select  prl_baseline_txt, end_dt from  pplan_prl where pplan_id_no = %mcsCustomerDevice.pplanIdNo and roam_agree_typ   = 'IRSA'
+			</query>
+			<filter>endDt == '9999-12-31'  </filter>
+		</attribute>
+		
+		<attribute name = "splanPrlKey" type="ReferenceXrefModel" visible="false">
+			<variable>
+				import com.vzwcorp.dagv.data.model.ReferenceXrefModel 
+				def finalList = []
+				%accountSPlan.each{
+					def finalkey =  it.splanIdNo +'~~IRSA' 
+					finalList.add(new ReferenceXrefModel(pk1Value :finalkey))
+				}
+				return finalList;
+			</variable>
+		</attribute>
+		
+	 	<attribute name="prlBaseLineSplanOldLTE" type="SplanPrlModel" dataservice="Cassandra">
+			<query>
+				select nk1_value as prl_baseline_txt,nk2_value as splan_prl_end_dt,pk1_value as roam_agree_typ 
+				from reference_xref where source_table='SPLAN_PRL' and pk1_value=%splanPrlKey.pk1Value.roamAgreeTyp
+			</query>
+			<filter>splanPrlEndDt == '9999-12-31'  </filter>
+		</attribute> 
+		
+		<attribute name="ordLnPendNewMinId" visible="false">
+			<variable>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).newMinId != null  &amp;&amp;  %orderLnItemPending.get(0).newMinId.length() &gt;= 7</variable>
+		</attribute>
+
+		<attribute name="newMinLDig" type="MinLSidBidModel" visible="false">
+		 <conditional>%ordLnPendNewMinId</conditional>
+			<variable>
+			 	def minLSidBidModel = new com.vzwcorp.dagv.data.model.MinLSidBidModel()
+				minLSidBidModel.minLDig=%orderLnItemPending.get(0).newMinId.substring(6,7)
+				minLSidBidModel
+			</variable>
+		</attribute>
+	
+		<attribute name="newMinCarrier" type="MinLSidBidModel" visible="false">
+		<conditional>%ordLnPendNewMinId</conditional>
+			<variable>
+				def minLSidBidModel = new com.vzwcorp.dagv.data.model.MinLSidBidModel()
+				minLSidBidModel.minCarrier=%orderLnItemPending.get(0).newMinId.substring(0,6)
+				minLSidBidModel
+			</variable>
+		</attribute>
+	
+		<attribute name="newMinLSidBid" type="MinLSidBidModel" dataservice="Cassandra">
+			<query>
+				select sbid,min_carrier,min_l_dig,disassociation_dt from MIN_L_SID_BID
+				where min_carrier=%newMinCarrier.minCarrier and
+				min_l_dig=%newMinLDig.minLDig
+			</query>
+			<filter>disassociationDt == '9999-12-31' </filter>
+		</attribute>
+	  
+		 <attribute name="orderLnItemFeaturesfeatIdsDelete" executeOnEmptyDependencies="true" visible="true">
+			<variable>
+				%orderLnItemFeaturesfeatIdsInSfo.findAll{['D'].contains(it.sfTranCd)}
+			</variable>
+		 </attribute>
+
+		<attribute name="keepFeatureIds"
+			executeOnEmptyDependencies="true" visible="true">
+			<variable>
+				%orderLnItemFeaturesfeatIdsInSfo.findAll{(%orderLnItemFeaturesfeatIdsDelete.featIdsInSfo.contains(it.featIdsInSfo)
+				&amp;&amp; ['A'].contains(it.sfTranCd)) ||
+				(%orderLnItemFeaturesfeatIdsDelete.featIdsInSfo.contains(it.featIdsInSfo)
+				&amp;&amp; ['Z'].contains(it.sfTranCd)) }
+			</variable>
+		</attribute>
+		
+		<!--  SFO from sf_mtn -->
+		
+		<attribute name="sfMtn" type="SfMtnModel" dataservice="Cassandra" visible="true">
+			<query>
+				select mtn,cust_id_no,acct_no,mtn_eff_dt,sf_offering_id,eff_tmstamp,create_dt,created_by,created_tmstamp,db_tmstamp,db_userid,eff_dt,end_dt,end_tmstamp,
+				limit_typ_cd,modified_by,modified_tmstamp,outlet_id,sf_hotln_mtn,sls_rep_id,vision_user_id_cd from sf_mtn 
+				where mtn = $mtn and cust_id_no =$custIdNo and acct_no = $acctNo and mtn_eff_dt = %orderLnItemPending.newMtnEffDt.mtnEffDt
+			</query>
+			<queryFilters operator="AND">
+				<queryFilter column = "end_dt" value="9999-12-31" expression="EQUALS"/>
+			</queryFilters>
+		</attribute>
+		
+		<attribute name="FeatureBySfomtn" type="FeatureBySfoIdModel" dataservice="Cassandra" visible="true">
+			<query>select pckge_id, sf_offering_id, offering_bill_dsc, offering_dsc, feat_id, feat_typ_cd, feat_nme from feature_by_sfo_id where  sf_offering_id = %sfMtn.sfOfferingId</query>
+		</attribute> 
+
+		
+		<!-- <attribute name="sfOffrData" type="SfOffrModel" dataservice="Cassandra">
+			<query>
+			  select pk1_value as sf_offering_id ,nk4_value as pckge_id from reference_xref  where source_table = 'SF_OFFR' and pk1_value = %sfMtn.sfOfferingId.strSfOfferingId
+			</query>
+		</attribute>
+		
+		<attribute name="pckgeFeature" type="PckgeFeatureModel" dataservice="Cassandra" visible="true">
+			<query>select pk1_value as pckge_id,ck1_value as feat_id from reference_xref where source_table = 'PCKGE_FEATURE' and pk1_value= %sfOffrData.pckgeId.strPckgeId</query>
+		</attribute>  -->
+		
+		<attribute name="mqFeatureXrefSfMtn" type="MqFeatureXrefModel" dataservice="Cassandra">
+			<query>
+				select mtas_feat_cd,feat_id,lcc_txt from mq_feature_xref where feat_id = %FeatureBySfomtn.featId
+			</query>
+		</attribute> 
+		
+		<attribute name="mqFeatureXrefSfMtnUnique" type="MqFeatureXrefModel" dataservice="Cassandra" defaultToEmptyIfCancel="true" executeOnEmptyDependencies="true">
+			<variable> %mqFeatureXrefSfMtn.findAll{!%mqFeatureXref.featId.contains(it.featId)}
+			</variable>
+ 		</attribute>
+		
+		<!-- SPO from lnSvcProd -->
+		
+		 <attribute name="lnSvcProdData" type="LineSvcProdModel" dataservice="Cassandra" visible="true">
+			<query>
+				select svc_prod_id,ln_svc_prod_eff_ts,ln_svc_prod_unique_id,create_ts,created_by,created_tmstamp,db_tmstamp,ln_svc_prod_end_ts,
+				modified_by,modified_tmstamp,orig_svc_prod_eff_ts,orig_svc_prod_uniq_id,outlet_id,prod_id_trig,rule_grp_id_last,sls_rep_id,svc_prod_expire_dt,svc_prod_reinstat_ind,
+				vision_user_id_cd from line_svc_prod where ln_of_svc_id_no_p2 = %orderLnItemPending.lnOfSvcIdNoP2 and ln_of_svc_id_no_p1 = %orderLnItemPending.lnOfSvcIdNoP1
+			</query>
+		</attribute>
+		
+		<attribute name="svcProdProvMapData" type="SvcProdProvMapModel" dataservice="Cassandra"  >
+			<query> select svc_prod_id, svc_prod_prov_cd, prov_typ_cd, prov_dest_sys_cd from svc_prod_prov_map
+					where svc_prod_id = %lnSvcProdData.svcProdId
+			</query>
+ 		</attribute>
+
+		<attribute name="svcProdProvMapUnique" type="SvcProdProvMapModel" dataservice="Cassandra" defaultToEmptyIfCancel="true" executeOnEmptyDependencies="true">
+			<variable> %svcProdProvMapData.findAll{!%tempsvcProdProvMap1.svcProdId.contains(it.svcProdId)}
+			</variable>
+ 		</attribute>
+
+		<attribute name="ovrSvcProdProvMapDataLn" type="SvcProdProvOverrideModel" dataservice="Cassandra">
+			<query> select svc_prod_id, svc_prod_prov_cd, ovr_svc_prod_prov_cd from
+					svc_prod_prov_override where svc_prod_id = %svcProdProvMapUnique.svcProdId
+			</query>
+ 		</attribute>
+ 		
+ 		<attribute name="ovrSvcProdProvMapData" defaultToEmptyIfCancel="true" executeOnEmptyDependencies="true">
+			<variable> %ovrSvcProdProvMapDataLn.findAll{!%overrideSvcProdProvMap.svcProdId.contains(it.svcProdId)}
+			</variable>
+ 		</attribute>
+ 		
+ 		<!-- VZWFB-4905 -->
+ 		<attribute name="ovrLnSvcProd" type="SvcProdProvOverrideModel" dataservice="Cassandra">
+			<query> select svc_prod_id, svc_prod_prov_cd, ovr_svc_prod_prov_cd from
+					svc_prod_prov_override where svc_prod_id = %lnSvcProdData.svcProdId
+			</query>
+ 		</attribute>
+		
+		<attribute name="ovrLnSvcProdData" type="SvcProdProvMapModel" dataservice="Cassandra" defaultToEmptyIfCancel="true" executeOnEmptyDependencies="true">
+		<variable> %ovrLnSvcProd.findAll{!%svcProdProvMapUnique.svcProdId.contains(it.svcProdId)}
+		</variable>
+ 		</attribute>
+ 		
+ 		<attribute name="dvcId" visible="false">
+			<conditional>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).deviceId != null </conditional>
+			<variable>%orderLnItemPending.get(0).deviceId</variable>
+		</attribute>
+ 		
+ 		<!-- IMEI -->
+ 		<attribute name="deviceIdEqp" type="DvcSimEqpAssnAllModel" dataservice="Cassandra">
+			<query> 
+				select device_id_eqp,bill_sys_id from DVC_SIM_EQP_ASSN_ALL where dvc_id=%dvcId and bill_sys_id=$billSysId
+			</query>
+ 		</attribute>
+ 		
+ 		<!-- EID -->
+ 		
+ 		<attribute name="custDvcEidAssnData" type="CustDvcEidAssnModel" dataservice="Cassandra" visible="false">
+			<query>
+		 		select device_eid,device_eid_end_ts,bill_sys_id,mtn,mtn_eff_dt from cust_dvc_eid_assn where cust_id_no = %orderLnItemPending.custIdNo
+				and acct_no = %orderLnItemPending.acctNo and bucket_no = #bucketNo limit 100
+			</query>
+			<filter>billSysId == %intBillSysId  &amp;&amp; mtn == %orderLnItemPending.get(0).mtn &amp;&amp; mtnEffDt == %custMtnData.get(0).mtnEffDt </filter> 
+ 		</attribute>
+ 		
+ 		<attribute name="oldEidData" >
+			<variable>%custDvcEidAssnData.max{it.deviceEidEndTs}</variable>
+		</attribute>
+
+		<attribute name="mobilTelephoneNo" type="MobilTelephoneNoModel" dataservice="Cassandra">
+			<query>
+				select mtn,acct_no,cust_id_no,port_cd from mobile_telephone_no where mtn = $mtn and bill_sys_id=$billSysId  
+			</query>
+			<queryFilters operator="AND">
+				<queryFilter column = "port_cd" value="PI" expression="EQUALS"/>
+			</queryFilters>
+		</attribute>
+		
+		<attribute name="newMtnData" type="MobilTelephoneNoModel" visible="false">
+			<conditional>%orderLnItemPending != null &amp;&amp; !%orderLnItemPending.empty &amp;&amp;
+			%orderLnItemPending.get(0).newMtn != null </conditional>
+			<variable>
+					 def mobTelephNo = new com.vzwcorp.dagv.data.model.MobilTelephoneNoModel()
+					 mobTelephNo.mtn = %orderLnItemPending.get(0).newMtn
+					 mobTelephNo
+			</variable>
+		</attribute>
+		
+		<attribute name="newMobilTelephoneNo" type="MobilTelephoneNoModel" dataservice="Cassandra">
+			<query>
+				select mtn,acct_no,cust_id_no,port_cd from mobile_telephone_no where mtn = %newMtnData.mtn and bill_sys_id=$billSysId  
+			</query>
+			<queryFilters operator="AND">
+				<queryFilter column = "port_cd" value="PI" expression="EQUALS"/>
+			</queryFilters>
+		</attribute>
+		
+		<!-- VZWFB-5528 -->
+		
+		<attribute name="intCustIdNo" type="CustBlCycleModel" visible="false">
+			<variable>
+				 def custBlCycleModel = new com.vzwcorp.dagv.data.model.CustBlCycleModel()
+				 custBlCycleModel.custIdNo = $custIdNo.toInteger()
+				 custBlCycleModel
+			</variable>
+		</attribute>
+		
+		<attribute name="custBlCycleData" type="CustBlCycleModel" dataservice="Cassandra">
+			<query>
+				select bl_cyc_no, eff_dt, end_dt, bill_sys_id from cust_bl_cycle  where cust_id_no = %intCustIdNo.custIdNo and bl_typ_cd = 'C'
+			</query>
+			<queryFilters operator="AND">
+				<queryFilter column = "bill_sys_id" value="$billSysId" expression="EQUALS"/>
+			</queryFilters>
+		</attribute>
+
+	</typedef>
+</typedefs>
